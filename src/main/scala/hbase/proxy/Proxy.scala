@@ -53,7 +53,7 @@ object Proxy extends App with HBaseConnection {
 
   val tableName: TableName = TableName.valueOf("proxy", "request")
   val columnFamilies = Set("info")
-  val table: Table = getOrCreateTable(tableName,columnFamilies )
+  val table: Table = getOrCreateTable(tableName, columnFamilies)
 
 
   private val flow: Flow[HttpRequest, HttpResponse, NotUsed] = Flow[HttpRequest].map { request =>
@@ -63,7 +63,7 @@ object Proxy extends App with HBaseConnection {
     val get: Get = new Get(ipAddress)
     columnFamilies.foreach(f => get.addFamily(f))
     get.setMaxVersions(5)
-    val result:Result = table.get(get)
+    val result: Result = table.get(get)
 
     val families: util.NavigableMap[Array[Byte], util.NavigableMap[Array[Byte], util.NavigableMap[lang.Long, Array[Byte]]]] = result.getMap
 
@@ -88,22 +88,27 @@ object Proxy extends App with HBaseConnection {
     }
 
 
-
-    if (result==null||versionToValue.size<5){
+    if (result == null || versionToValue.size < 5) {
       HttpResponse()
     }
 
-    val keys:List[Long] = versionToValue.keys.toList
 
-    keys.foreach{
-      k=>
-        val date = new java.util.Date(k)
-        date.
-        println(date)
+    val keys: List[Long] = versionToValue.keys.toList
+
+    val five = keys.take(5).sortWith(_ > _)
+    five.foreach{
+      l =>
+        println(l)
+        println(new util.Date(l))
     }
+    val first = five.head
+    println(new util.Date(first))
+    val last = five.drop(4)(0)
+    println(new util.Date(last))
 
-
-//    val function = NumericRange[Long]
+    val seconds = (first-last)/ 1000
+    println(seconds)
+    println(new util.Date(seconds))
 
     HttpResponse()
   }
@@ -112,7 +117,7 @@ object Proxy extends App with HBaseConnection {
 
     null
   }
-//  val bidiFlow = BidiFlow.fromFlows(inFlow, outFlow)
+  //  val bidiFlow = BidiFlow.fromFlows(inFlow, outFlow)
 
 
 }
