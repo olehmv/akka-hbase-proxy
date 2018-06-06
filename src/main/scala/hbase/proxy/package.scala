@@ -3,7 +3,7 @@ package hbase
 import java.{lang, util}
 
 import akka.http.scaladsl.model.HttpRequest
-import hbase.proxy.Proxy.{columnFamilies, connect, getOrCreateTable}
+import hbase.proxy.Proxy.{connect, getOrCreateTable}
 import org.apache.hadoop.hbase.client._
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{HBaseConfiguration, TableName}
@@ -21,7 +21,11 @@ package object proxy {
 
   implicit def bytesArrToInt(arr: Array[Byte]) = Bytes.toInt(arr)
 
+  implicit def booleanToBytes(bool:Boolean)=Bytes.toBytes(bool)
+
   final val DoSThresholdNumberOfAccess = 5
+
+  final val Versions=10;
 
   final val One = 1
 
@@ -54,8 +58,8 @@ package object proxy {
     val ipAddress: String = ipAddressAndPort.split(ColumnSeparator)(FirstElement)
     val port: String = ipAddressAndPort.split(ColumnSeparator)(SecondElement)
     val get: Get = new Get(ipAddress)
-    columnFamilies.foreach(f => get.addFamily(f))
-    get.setMaxVersions(5)
+    ColumnFamilies.foreach(f => get.addFamily(f))
+    get.setMaxVersions(Versions)
     val result: Result = table.get(get)
     result match {
       case res:Result if res.isEmpty=>{
@@ -67,7 +71,15 @@ package object proxy {
       case res:Result if res.containsColumn("info","dos")=>
         true
       case res:Result if checkTimeStamps(timeStamps(res))=>
+        val put = new Put(ipAddress)
+        put.addColumn("info","dos",true)
+        table.put(put)
         true
+      case _=>
+        val put = new Put(ipAddress)
+        put.addColumn("info","port",port)
+        table.put(put)
+        false
     }
 
   }
@@ -97,14 +109,20 @@ package object proxy {
   }
 
   def checkTimeStamps(timeStamps:List[Long]): Boolean ={
-    if(timeStamps.size  > DoSThresholdNumberOfAccess){
-      if(checkDifferenceBetweenTimestamps(timeStamps)>DoSThresholdInSeconds){
-        true
-      }
-    }
-    false
-  }
 
+    timeStamps match {
+      case t if t.size  > DoSThresholdNumberOfAccess=> t match {
+        case t if checkDifferenceBetweenTimestamps(t)>DoSThresholdInSeconds=>{
+          true
+        }
+      }
+      case _=>{
+        false
+      }
+
+    }
+
+  }
 
   def checkDifferenceBetweenTimestamps(timeStamps:List[Long]): Long = {
     val timeStampsDescending: List[Long] = timeStamps.take(DoSThresholdNumberOfAccess).sortWith(_ > _)

@@ -28,7 +28,7 @@ trait HBaseConnection {
       columnFamilies.foreach {
         s =>
           val columnDescriptor = new HColumnDescriptor(s)
-          columnDescriptor.setMaxVersions(10)
+          columnDescriptor.setMaxVersions(proxy.Versions)
 
           //hfile compression algorithm
 //          columnDescriptor.setCompressionType(Compression.Algorithm.SNAPPY);
@@ -49,8 +49,11 @@ trait HBaseConnection {
           tableDescriptor.addFamily(columnDescriptor)
       }
       val namespace: String = tableName.getNamespace
-      val buildnameSpace = NamespaceDescriptor.create(namespace).build
-      admin.createNamespace(buildnameSpace)
+      val namespaceDescriptor = admin.getNamespaceDescriptor(Bytes.toString(tableName.getNamespace))
+      if(namespaceDescriptor==null){
+        val buildnameSpace = NamespaceDescriptor.create(namespace).build
+        admin.createNamespace(buildnameSpace)
+      }
       admin.createTable(tableDescriptor)
       connection.getTable(tableName)
     }

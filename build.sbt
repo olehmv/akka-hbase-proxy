@@ -12,6 +12,8 @@ val akkaHttpVersion = "10.0.13"
 
 libraryDependencies ++= Seq(
 
+  "org.scalatest" %% "scalatest" % "2.2.0" % "test",
+
   "eu.bitwalker" % "UserAgentUtils" % "1.14",
 
   "com.typesafe" % "config" % "1.3.2",
