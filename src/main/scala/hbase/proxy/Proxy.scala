@@ -1,20 +1,17 @@
 package hbase.proxy
 
-import java.{lang, util}
-
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes}
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import hbase.HBaseConnection
-import org.apache.hadoop.hbase.client.{Connection, Get, Result, Table}
-import org.apache.hadoop.hbase.util.Bytes
+import org.apache.hadoop.hbase.client._
 import org.apache.hadoop.hbase.{HBaseConfiguration, TableName}
 
-import scala.collection.JavaConversions._
+import scala.collection.mutable
 
 
 object Proxy extends App with HBaseConnection {
@@ -39,14 +36,6 @@ object Proxy extends App with HBaseConnection {
   val binding = Http(system).bindAndHandle(proxy, "localhost", 8080)
 
 
-  implicit def intToBytes(int: Int) = Bytes.toBytes(int)
-
-  implicit def stringToBytes(string: String) = Bytes.toBytes(string)
-
-  implicit def bytesArrToString(arr: Array[Byte]) = Bytes.toString(arr)
-
-  implicit def bytesArrToInt(arr: Array[Byte]) = Bytes.toInt(arr)
-
   val conf = HBaseConfiguration.create()
 
   implicit def connection: Connection = connect(conf)
@@ -60,57 +49,30 @@ object Proxy extends App with HBaseConnection {
     val ipAddressAndPort: String = request.getHeader("Remote-Address").get().value()
     val ipAddress: String = ipAddressAndPort.split(":")(0)
     val port: String = ipAddressAndPort.split(":")(1)
-    val get: Get = new Get(ipAddress)
+    val get: Get = new Get("1")
     columnFamilies.foreach(f => get.addFamily(f))
     get.setMaxVersions(5)
     val result: Result = table.get(get)
+    result match {
+      case res:Result if res.isEmpty=>{
+        val put = new Put(ipAddress)
+        put.addColumn("info","port",port)
+        table.put(put)
+        HttpResponse(status = StatusCodes.OK)
+      }
+      case res:Result if res.containsColumn("info","dos")=>{
+        HttpResponse(status=StatusCodes.BadRequest)
+      }
+      case res:Result if timeStamps(res).size  > 5=>{
+        val versionToValue: mutable.Map[Long, String] = timeStamps(res)
+        val timeStampsDescending: List[Long] = versionToValue.keys.take(5).toList.sortWith(_ > _)
+        val lastTimeStampAccess = timeStampsDescending.head
+        val fiveBeforeLastTimeStampAccessTimeStamp = timeStampsDescending.drop(4)(0)
+        val differenceBetweenLastTimeStampAccessAndFiveBeforeLastTimeStampAccessTimeStampInSeconds = (lastTimeStampAccess-fiveBeforeLastTimeStampAccessTimeStamp)/ 1000
 
-    val families: util.NavigableMap[Array[Byte], util.NavigableMap[Array[Byte], util.NavigableMap[lang.Long, Array[Byte]]]] = result.getMap
-
-    val versionToValue = collection.mutable.Map[Long, String]()
-
-    for (family <- families.entrySet()) {
-      val familyName: String = family.getKey
-      println(familyName)
-      val columns: util.NavigableMap[Array[Byte], util.NavigableMap[lang.Long, Array[Byte]]] = family.getValue
-      for (column <- columns) {
-        val columnName: String = column._1
-        println(columnName)
-        val timeStampAndValue: util.NavigableMap[lang.Long, Array[Byte]] = column._2
-        for (timeStamp <- timeStampAndValue) {
-          val version: Long = timeStamp._1
-          println(version)
-          val value: String = timeStamp._2
-          println(value)
-          versionToValue += (version -> value)
-        }
+        HttpResponse()
       }
     }
-
-
-    if (result == null || versionToValue.size < 5) {
-      HttpResponse()
-    }
-
-
-    val keys: List[Long] = versionToValue.keys.toList
-
-    val five = keys.take(5).sortWith(_ > _)
-    five.foreach{
-      l =>
-        println(l)
-        println(new util.Date(l))
-    }
-    val first = five.head
-    println(new util.Date(first))
-    val last = five.drop(4)(0)
-    println(new util.Date(last))
-
-    val seconds = (first-last)/ 1000
-    println(seconds)
-    println(new util.Date(seconds))
-
-    HttpResponse()
   }
 
   val outFlow: Flow[HttpResponse, HttpRequest, NotUsed] = {
@@ -123,3 +85,39 @@ object Proxy extends App with HBaseConnection {
 }
 
 //val flow: Flow[HttpRequest, HttpResponse, NotUsed] = Flow.fromGraph(hbf)
+
+//
+//if(result.isEmpty){
+//  val put = new Put(ipAddress)
+//  HttpResponse()
+//}
+//
+//  val versionToValue:collection.mutable.Map[Long, String] = versions(result)
+//
+//  if (result == null || versionToValue.size < 5) {
+//  HttpResponse()
+//}
+//
+//
+//  val keys: List[Long] = versionToValue.keys.toList
+//
+//  val five = keys.take(5).sortWith(_ > _)
+//  five.foreach{
+//  l =>
+//  println(l)
+//  println(new util.Date(l))
+//}
+//  val first = five.head
+//  println(new util.Date(first))
+//  val last = five.drop(4)(0)
+//  println(new util.Date(last))
+//
+//  val seconds = (first-last)/ 1000
+//
+//  if(1<5){
+//  val put = new Put(ipAddress)
+//  put.addColumn("info","dos",Bytes.toBytes(true))
+//  table.put(put)
+//  val i=1;
+//
+//}

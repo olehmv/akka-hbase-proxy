@@ -33,7 +33,7 @@ object M extends App with HBaseConnection {
 
   val get: Get = new Get("127.1.0.0")
   get.setMaxVersions(10)
-  get.addColumn("info", "port")
+//  get.addColumn("info", "port")
 
   private val scanner: ResultScanner = table.getScanner(new Scan(get))
 
