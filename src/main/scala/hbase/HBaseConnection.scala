@@ -52,7 +52,7 @@ trait HBaseConnection {
       val tableExist: Boolean = admin.tableExists(tableName)
       if(!tableExist){
         val buildnameSpace = NamespaceDescriptor.create(namespace).build
-//        admin.createNamespace(buildnameSpace)
+        admin.createNamespace(buildnameSpace)
         admin.createTable(tableDescriptor)
       }
       connection.getTable(tableName)

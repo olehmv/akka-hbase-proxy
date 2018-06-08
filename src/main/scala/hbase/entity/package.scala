@@ -17,9 +17,7 @@ package object entity {
   implicit def booleanToBytes(bool:Boolean)=Bytes.toBytes(bool)
 
   trait Marshalling extends DefaultJsonProtocol with SprayJsonSupport{
-
     implicit val personFormat = jsonFormat2(Person)
-
   }
 
   case class Person(id:String,name:String)

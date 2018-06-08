@@ -23,6 +23,12 @@ package object proxy {
 
   implicit def booleanToBytes(bool: Boolean) = Bytes.toBytes(bool)
 
+  final val Interface = "localhost"
+
+  final val Port = 9991
+
+  final val ClientPort = 8881
+
   final val DoSThresholdNumberOfAccess = 5
 
   final val Versions = 10;
@@ -39,7 +45,7 @@ package object proxy {
 
   final val ColumnSeparator = ":"
 
-  final val DoSThresholdInSeconds = 1
+  final val DoSThresholdInSeconds = 10000
 
   final val HBSchema = "proxy"
 
@@ -48,9 +54,10 @@ package object proxy {
   final val ColumnFamilies = Set("info")
 
   val conf = HBaseConfiguration.create()
-  conf.set("hbase.zookeeper.property.clientPort", "2181")
-  conf.set("hbase.zookeeper.quorum", "sandbox-hdp.hortonworks.com")
-  conf.set("zookeeper.znode.parent", "/hbase-unsecure")
+  //HDP config
+  //conf.set("hbase.zookeeper.property.clientPort", "2181")
+  //conf.set("hbase.zookeeper.quorum", "sandbox-hdp.hortonworks.com")
+  //conf.set("zookeeper.znode.parent", "/hbase-unsecure")
 
 
   implicit def connection: Connection = connect(conf)

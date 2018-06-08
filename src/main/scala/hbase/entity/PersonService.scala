@@ -1,6 +1,10 @@
 package hbase.entity
 
 import akka.NotUsed
+import akka.actor.ActorSystem
+import akka.event.Logging
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.common.{EntityStreamingSupport, JsonEntityStreamingSupport}
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
@@ -10,18 +14,44 @@ import hbase.HBaseConnection
 import org.apache.hadoop.hbase.client.{Connection, Get, Put, Table}
 import org.apache.hadoop.hbase.{HBaseConfiguration, TableName}
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
+object PersonService extends App {
+
+  implicit val system = ActorSystem("person")
+  implicit val materializer = ActorMaterializer()
+  implicit val executionContext = system.dispatcher
+
+  val Interface = "localhost"
+  val Port = 8881
+
+  private val routs = new PersonService().routs
+
+  val bindingFuture: Future[ServerBinding] =
+    Http().bindAndHandle(routs, Interface, Port)
+
+  val log = Logging(system.eventStream, "logs")
+  bindingFuture
+    .map { serverBinding =>
+      log.info(s"Bound to ${serverBinding.localAddress} ")
+    }
+    .onFailure {
+      case ex: Exception =>
+        log.error(ex, "Failed to bind to {}:{}!", Interface, Port)
+        system.terminate()
+    }
+}
 
 class PersonService(
                      implicit val executionContext: ExecutionContext,
                      val materializer: ActorMaterializer
                    ) extends Marshalling with HBaseConnection {
   val conf = HBaseConfiguration.create()
-  conf.set("hbase.zookeeper.property.clientPort", "2181")
-  conf.set("hbase.zookeeper.quorum", "sandbox-hdp.hortonworks.com")
-  conf.set("zookeeper.znode.parent", "/hbase-unsecure")
+  //HDP connection config
+  //conf.set("hbase.zookeeper.property.clientPort", "2181")
+  //conf.set("hbase.zookeeper.quorum", "sandbox-hdp.hortonworks.com")
+  //conf.set("zookeeper.znode.parent", "/hbase-unsecure")
 
   implicit def connection: Connection = connect(conf)
 
@@ -61,7 +91,6 @@ class PersonService(
       }
     }
 
-
   implicit val jsonStreamingSupport: JsonEntityStreamingSupport =
     EntityStreamingSupport
       .json()
@@ -82,7 +111,6 @@ class PersonService(
           }
         }
       }
-
     }
 
   def postFlow: Flow[Person, Person, NotUsed] = Flow[Person].map {
@@ -101,6 +129,4 @@ class PersonService(
       val name: String = result.getValue(ColumnFamilies.head, ColumnNames.head)
       Person(id, name)
   }
-
-
 }
