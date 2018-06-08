@@ -49,12 +49,12 @@ trait HBaseConnection {
           tableDescriptor.addFamily(columnDescriptor)
       }
       val namespace: String = tableName.getNamespace
-      val namespaceDescriptor = admin.getNamespaceDescriptor(Bytes.toString(tableName.getNamespace))
-      if(namespaceDescriptor==null){
+      val tableExist: Boolean = admin.tableExists(tableName)
+      if(!tableExist){
         val buildnameSpace = NamespaceDescriptor.create(namespace).build
-        admin.createNamespace(buildnameSpace)
+//        admin.createNamespace(buildnameSpace)
+        admin.createTable(tableDescriptor)
       }
-      admin.createTable(tableDescriptor)
       connection.getTable(tableName)
     }
   }

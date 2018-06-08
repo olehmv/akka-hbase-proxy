@@ -21,39 +21,44 @@ package object proxy {
 
   implicit def bytesArrToInt(arr: Array[Byte]) = Bytes.toInt(arr)
 
-  implicit def booleanToBytes(bool:Boolean)=Bytes.toBytes(bool)
+  implicit def booleanToBytes(bool: Boolean) = Bytes.toBytes(bool)
 
   final val DoSThresholdNumberOfAccess = 5
 
-  final val Versions=10;
+  final val Versions = 10;
 
   final val One = 1
 
-  final val FirstElement=0
+  final val FirstElement = 0
 
-  final val SecondElement=1
+  final val SecondElement = 1
 
-  final val OneThousand=1000
+  final val OneThousand = 1000
 
-  final val RemoteAddress="Remote-Address"
+  final val RemoteAddress = "Remote-Address"
 
-  final val ColumnSeparator=":"
+  final val ColumnSeparator = ":"
 
-  final val DoSThresholdInSeconds=1
+  final val DoSThresholdInSeconds = 1
 
-  final val HBSchema="proxy"
+  final val HBSchema = "proxy"
 
-  final val HBTable="request"
+  final val HBTable = "request"
 
   final val ColumnFamilies = Set("info")
 
   val conf = HBaseConfiguration.create()
+  conf.set("hbase.zookeeper.property.clientPort", "2181")
+  conf.set("hbase.zookeeper.quorum", "sandbox-hdp.hortonworks.com")
+  conf.set("zookeeper.znode.parent", "/hbase-unsecure")
+
 
   implicit def connection: Connection = connect(conf)
+
   val tableName: TableName = TableName.valueOf(HBSchema, HBTable)
   val table: Table = getOrCreateTable(tableName, ColumnFamilies)
 
-  def isRequestDoSAttack(request:HttpRequest): Boolean ={
+  def isRequestDoSAttack(request: HttpRequest): Boolean = {
     val ipAddressAndPort: String = request.getHeader(RemoteAddress).get().value()
     val ipAddress: String = ipAddressAndPort.split(ColumnSeparator)(FirstElement)
     val port: String = ipAddressAndPort.split(ColumnSeparator)(SecondElement)
@@ -62,22 +67,24 @@ package object proxy {
     get.setMaxVersions(Versions)
     val result: Result = table.get(get)
     result match {
-      case res:Result if res.isEmpty=>{
+      case res: Result if res.isEmpty => {
         val put = new Put(ipAddress)
-        put.addColumn("info","port",port)
+        put.addColumn("info", "port", port)
+        println(new java.util.Date().getTime)
         table.put(put)
         false
       }
-      case res:Result if res.containsColumn("info","dos")=>
+      case res: Result if res.containsColumn("info", "dos") =>
         true
-      case res:Result if checkTimeStamps(timeStamps(res))=>
+      case res: Result if checkTimeStamps(timeStamps(res)) =>
         val put = new Put(ipAddress)
-        put.addColumn("info","dos",true)
+        put.addColumn("info", "dos", true)
         table.put(put)
         true
-      case _=>
+      case _ =>
         val put = new Put(ipAddress)
-        put.addColumn("info","port",port)
+        put.addColumn("info", "port", port)
+        println(new java.util.Date().getTime)
         table.put(put)
         false
     }
@@ -85,38 +92,35 @@ package object proxy {
   }
 
 
-  def timeStamps(result: Result):List[Long] = {
+  def timeStamps(result: Result): List[Long] = {
     val families: util.NavigableMap[Array[Byte], util.NavigableMap[Array[Byte], util.NavigableMap[lang.Long, Array[Byte]]]] = result.getMap
     val versionToValue = collection.mutable.Map[Long, String]()
     for (family <- families.entrySet()) {
       val familyName: String = family.getKey
-      println(familyName)
       val columns: util.NavigableMap[Array[Byte], util.NavigableMap[lang.Long, Array[Byte]]] = family.getValue
       for (column <- columns) {
         val columnName: String = column._1
-        println(columnName)
         val timeStampAndValue: util.NavigableMap[lang.Long, Array[Byte]] = column._2
         for (timeStamp <- timeStampAndValue) {
           val version: Long = timeStamp._1
-          println(version)
           val value: String = timeStamp._2
-          println(value)
           versionToValue += (version -> value)
         }
       }
     }
-    versionToValue.keys.toList
+    versionToValue.keys.toList.sortWith(_ > _)
   }
 
-  def checkTimeStamps(timeStamps:List[Long]): Boolean ={
+  def checkTimeStamps(timeStamps: List[Long]): Boolean = {
 
     timeStamps match {
-      case t if t.size  > DoSThresholdNumberOfAccess=> t match {
-        case t if checkDifferenceBetweenTimestamps(t)>DoSThresholdInSeconds=>{
+      case t if t.size > DoSThresholdNumberOfAccess => t match {
+        case t if checkDifferenceBetweenTimestamps(t) <= DoSThresholdInSeconds => {
           true
         }
+        case _ => false
       }
-      case _=>{
+      case _ => {
         false
       }
 
@@ -124,10 +128,10 @@ package object proxy {
 
   }
 
-  def checkDifferenceBetweenTimestamps(timeStamps:List[Long]): Long = {
+  def checkDifferenceBetweenTimestamps(timeStamps: List[Long]): Long = {
     val timeStampsDescending: List[Long] = timeStamps.take(DoSThresholdNumberOfAccess).sortWith(_ > _)
     val lastTimeStampAccess = timeStampsDescending.head
-    val thresholdTimeStamp = timeStampsDescending.drop(DoSThresholdNumberOfAccess-One)(FirstElement)
+    val thresholdTimeStamp = timeStampsDescending.drop(DoSThresholdNumberOfAccess - One)(FirstElement)
     val differenceBetweenLastTimeStampAccessAndThresholdTimeStampInSeconds = (lastTimeStampAccess - thresholdTimeStamp) / OneThousand
     differenceBetweenLastTimeStampAccessAndThresholdTimeStampInSeconds
   }

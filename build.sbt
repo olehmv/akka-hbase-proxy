@@ -12,6 +12,8 @@ val akkaHttpVersion = "10.0.13"
 
 libraryDependencies ++= Seq(
 
+  "joda-time" % "joda-time" % "2.10",
+
   "org.scalatest" %% "scalatest" % "2.2.0" % "test",
 
   "eu.bitwalker" % "UserAgentUtils" % "1.14",
@@ -28,7 +30,7 @@ libraryDependencies ++= Seq(
 
   "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpVersion,
 
-  "org.apache.hbase" % "hbase-server" % "1.2.6" ,
+  "org.apache.hbase" % "hbase-server" % "1.2.6",
 
   "org.apache.hbase" % "hbase-client" % "1.2.6",
 
